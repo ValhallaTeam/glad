@@ -74,11 +74,11 @@ class EGLCLoader(BaseLoader):
     def write_has_ext(self, fobj):
         fobj.write(_EGL_HAS_EXT)
 
-    def write_header(self, fobj):
+    def write_header(self, fobj, apis):
         fobj.write(_EGL_HEADER)
         if not self.disabled:
             fobj.write(_EGL_HEADER_LOADER)
 
-    def write_header_end(self, fobj):
+    def write_header_end(self, fobj, apis):
         fobj.write(_EGL_HEADER_END)
 

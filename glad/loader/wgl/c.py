@@ -2,11 +2,11 @@ from glad.loader import BaseLoader
 from glad.loader.c import LOAD_OPENGL_DLL, LOAD_OPENGL_DLL_H, LOAD_OPENGL_GLAPI_H
 
 _WGL_LOADER = \
-    LOAD_OPENGL_DLL % {'pre':'static', 'init':'open_gl',
-                       'proc':'get_proc', 'terminate':'close_gl'} + '''
+    LOAD_OPENGL_DLL % {'pre':'static', 'init':'open',
+                       'proc':'get_proc', 'terminate':'close', 'api':'gl'} + '''
 int gladLoadWGL(HDC hdc) {
     if(open_gl()) {
-        gladLoadWGLLoader((GLADloadproc)get_proc, hdc);
+        gladLoadWGLLoader((GLADloadproc)get_proc_gl, hdc);
         close_gl();
         return 1;
     }
@@ -61,7 +61,7 @@ _WGL_HEADER_END = '''
 '''
 
 _WGL_HAS_EXT = '''
-static HDC GLADWGLhdc = INVALID_HANDLE_VALUE;
+static HDC GLADWGLhdc = (HDC)INVALID_HANDLE_VALUE;
 
 static int has_ext(const char *ext) {
     const char *terminator;
@@ -71,7 +71,7 @@ static int has_ext(const char *ext) {
     if(wglGetExtensionsStringEXT == NULL && wglGetExtensionsStringARB == NULL)
         return 0;
 
-    if(wglGetExtensionsStringARB == NULL || GLADWGLhdc == INVALID_HANDLE_VALUE)
+    if(wglGetExtensionsStringARB == NULL || GLADWGLhdc == (HDC)INVALID_HANDLE_VALUE)
         extensions = wglGetExtensionsStringEXT();
     else
         extensions = wglGetExtensionsStringARB(GLADWGLhdc);
@@ -114,11 +114,11 @@ class WGLCLoader(BaseLoader):
     def write_has_ext(self, fobj):
         fobj.write(_WGL_HAS_EXT)
 
-    def write_header(self, fobj):
+    def write_header(self, fobj, apis):
         fobj.write(_WGL_HEADER)
         if not self.disabled:
             fobj.write(_WGL_HEADER_LOADER)
 
-    def write_header_end(self, fobj):
+    def write_header_end(self, fobj, apis):
         fobj.write(_WGL_HEADER_END)
 

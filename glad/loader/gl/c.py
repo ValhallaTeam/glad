@@ -2,12 +2,25 @@ from glad.loader import BaseLoader
 from glad.loader.c import LOAD_OPENGL_DLL, LOAD_OPENGL_DLL_H, LOAD_OPENGL_GLAPI_H
 
 _OPENGL_LOADER = \
-    LOAD_OPENGL_DLL % {'pre':'static', 'init':'open_gl',
-                       'proc':'get_proc', 'terminate':'close_gl'} + '''
+    LOAD_OPENGL_DLL % {'pre':'static', 'init':'open',
+                       'proc':'get_proc', 'terminate':'close', 'api':'gl'} + '''
 int gladLoadGL(void) {
     if(open_gl()) {
-        gladLoadGLLoader(&get_proc);
+        gladLoadGLLoader(&get_proc_gl);
         close_gl();
+        return 1;
+    }
+    return 0;
+}
+'''
+
+_OPENGLES2_LOADER = \
+    LOAD_OPENGL_DLL % {'pre':'static', 'init':'open',
+                       'proc':'get_proc', 'terminate':'close', 'api':'gles2'} + '''
+int gladLoadGLES2(void) {
+    if(open_gles2()) {
+        gladLoadGLES2Loader(&get_proc_gles2);
+        close_gles2();
         return 1;
     }
     return 0;
@@ -101,8 +114,14 @@ extern "C" {
 typedef void* (* GLADloadproc)(const char *name);
 ''' + LOAD_OPENGL_GLAPI_H
 
+_OPENGLES2_HEADER = _OPENGL_HEADER
+
 _OPENGL_HEADER_LOADER = '''
 GLAPI int gladLoadGL(void);
+''' + LOAD_OPENGL_DLL_H
+
+_OPENGLES2_HEADER_LOADER = '''
+GLAPI int gladLoadGLES2(void);
 ''' + LOAD_OPENGL_DLL_H
 
 _OPENGL_HEADER_END = '''
@@ -112,6 +131,7 @@ _OPENGL_HEADER_END = '''
 
 #endif
 '''
+_OPENGLES2_HEADER_END = _OPENGL_HEADER_END
 
 _FIND_VERSION = '''
     // Thank you @elmindreda
@@ -148,6 +168,8 @@ class OpenGLCLoader(BaseLoader):
     def write(self, fobj, apis):
         if not self.disabled and 'gl' in apis:
             fobj.write(_OPENGL_LOADER)
+        if not self.disabled and 'gles2' in apis:
+            fobj.write(_OPENGLES2_LOADER)
 
     def write_begin_load(self, fobj):
         fobj.write('\tGLVersion.major = 0; GLVersion.minor = 0;\n')
@@ -160,10 +182,12 @@ class OpenGLCLoader(BaseLoader):
     def write_has_ext(self, fobj):
         fobj.write(_OPENGL_HAS_EXT)
 
-    def write_header(self, fobj):
+    def write_header(self, fobj, apis):
         fobj.write(_OPENGL_HEADER)
-        if not self.disabled:
+        if not self.disabled and 'gl' in apis:
             fobj.write(_OPENGL_HEADER_LOADER)
+        if not self.disabled and 'gles2' in apis:
+            fobj.write(_OPENGLES2_HEADER_LOADER)
 
-    def write_header_end(self, fobj):
+    def write_header_end(self, fobj, apis):
         fobj.write(_OPENGL_HEADER_END)

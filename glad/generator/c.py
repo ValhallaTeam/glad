@@ -116,12 +116,12 @@ class CGenerator(Generator):
                 f.write('\tload_{}(load);\n'.format(ext.name))
             f.write('\n\treturn;\n}\n\n')
 
-        self.loader.write_header_end(self._f_h)
+        self.loader.write_header_end(self._f_h, self.api)
 
     def generate_types(self, types):
         f = self._f_h
 
-        self.loader.write_header(f)
+        self.loader.write_header(f, self.api)
 
         for api in self.api:
             if api == 'glx':

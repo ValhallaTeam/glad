@@ -1,65 +1,67 @@
 
 LOAD_OPENGL_DLL = '''
-%(pre)s void* %(proc)s(const char *namez);
+%(pre)s void* %(proc)s_%(api)s(const char *namez);
+
+#if defined(_WIN32)
+static const char *NAMES_gl[] = {"opengl32.dll"};
+static const char *NAMES_gles2[] = {"libGLESv3.dll", "libGLESv2.dll"};
+static const char *GET_PROC_NAMES_gl[] = {"wglGetProcAddress"};
+static const char *GET_PROC_NAMES_gles2[] = {"eglGetProcAddress"};
+#elif defined(__APPLE__)
+static const char *NAMES_gl[] = {
+    "../Frameworks/OpenGL.framework/OpenGL",
+    "/Library/Frameworks/OpenGL.framework/OpenGL",
+    "/System/Library/Frameworks/OpenGL.framework/OpenGL",
+    "/System/Library/Frameworks/OpenGL.framework/Versions/Current/OpenGL"
+};
+#elif defined(__ANDROID__)
+static const char *NAMES_gl[] = {"libEGL.so"};
+static const char *NAMES_gles2[] = {"libEGL.so"};
+static const char *GET_PROC_NAMES_gl[] = {"eglGetProcAddress"};
+static const char *GET_PROC_NAMES_gles2[] = {"eglGetProcAddress"};
+#else
+static const char *NAMES_gl[] = {"libGL.so.1", "libGL.so"};
+static const char *NAMES_gles2[] = {"libGLESv3.so", "libGLESv2.so"};
+static const char *GET_PROC_NAMES_gl[] = {"glXGetProcAddress"};
+static const char *GET_PROC_NAMES_gles2[] = {"glXGetProcAddress"};
+#endif
+
 
 #ifdef _WIN32
 #include <windows.h>
-static HMODULE libGL;
-
+static HMODULE lib_%(api)s;
 typedef void* (APIENTRYP PFNWGLGETPROCADDRESSPROC_PRIVATE)(const char*);
-PFNWGLGETPROCADDRESSPROC_PRIVATE gladGetProcAddressPtr;
-
-%(pre)s
-int %(init)s(void) {
-    libGL = LoadLibraryA("opengl32.dll");
-    if(libGL != NULL) {
-        gladGetProcAddressPtr = (PFNWGLGETPROCADDRESSPROC_PRIVATE)GetProcAddress(
-                libGL, "wglGetProcAddress");
-        return gladGetProcAddressPtr != NULL;
-    }
-
-    return 0;
-}
-
-%(pre)s
-void %(terminate)s(void) {
-    if(libGL != NULL) {
-        FreeLibrary(libGL);
-        libGL = NULL;
-    }
-}
+static PFNWGLGETPROCADDRESSPROC_PRIVATE gladGetProcAddressPtr;
 #else
 #include <dlfcn.h>
-static void* libGL;
-
+static void* lib_%(api)s;
 #ifndef __APPLE__
 typedef void* (APIENTRYP PFNGLXGETPROCADDRESSPROC_PRIVATE)(const char*);
-PFNGLXGETPROCADDRESSPROC_PRIVATE gladGetProcAddressPtr;
+static PFNGLXGETPROCADDRESSPROC_PRIVATE gladGetProcAddressPtr;
+#endif
 #endif
 
 %(pre)s
-int %(init)s(void) {
-#ifdef __APPLE__
-    static const char *NAMES[] = {
-        "../Frameworks/OpenGL.framework/OpenGL",
-        "/Library/Frameworks/OpenGL.framework/OpenGL",
-        "/System/Library/Frameworks/OpenGL.framework/OpenGL",
-        "/System/Library/Frameworks/OpenGL.framework/Versions/Current/OpenGL"
-    };
+int %(init)s_%(api)s(void) {
+    unsigned int index = 0;
+    for(index = 0; index < (sizeof(NAMES_%(api)s) / sizeof(NAMES_%(api)s[0])); index++) {
+
+#ifdef _WIN32
+        lib_%(api)s = LoadLibraryA(NAMES_%(api)s[index]);
 #else
-    static const char *NAMES[] = {"libGL.so.1", "libGL.so"};
+        lib_%(api)s = dlopen(NAMES_%(api)s[index], RTLD_NOW | RTLD_GLOBAL);
 #endif
 
-    unsigned int index = 0;
-    for(index = 0; index < (sizeof(NAMES) / sizeof(NAMES[0])); index++) {
-        libGL = dlopen(NAMES[index], RTLD_NOW | RTLD_GLOBAL);
-
-        if(libGL != NULL) {
-#ifdef __APPLE__
+        if(lib_%(api)s != NULL) {
+#if defined(__APPLE__)
             return 1;
+#elif defined(_WIN32)
+            gladGetProcAddressPtr = (PFNWGLGETPROCADDRESSPROC_PRIVATE)GetProcAddress(
+                lib_%(api)s, GET_PROC_NAMES_%(api)s[index]);
+            return gladGetProcAddressPtr != NULL;
 #else
-            gladGetProcAddressPtr = (PFNGLXGETPROCADDRESSPROC_PRIVATE)dlsym(libGL,
-                "glXGetProcAddressARB");
+            gladGetProcAddressPtr = (PFNGLXGETPROCADDRESSPROC_PRIVATE)dlsym(lib_%(api)s,
+                GET_PROC_NAMES_%(api)s[index]);
             return gladGetProcAddressPtr != NULL;
 #endif
         }
@@ -69,18 +71,21 @@ int %(init)s(void) {
 }
 
 %(pre)s
-void %(terminate)s() {
-    if(libGL != NULL) {
-        dlclose(libGL);
-        libGL = NULL;
+void %(terminate)s_%(api)s() {
+    if(lib_%(api)s != NULL) {
+#ifdef _WIN32
+        FreeLibrary(lib_%(api)s);
+#else
+        dlclose(lib_%(api)s);
+#endif
+        lib_%(api)s = NULL;
     }
 }
-#endif
 
 %(pre)s
-void* %(proc)s(const char *namez) {
+void* %(proc)s_%(api)s(const char *namez) {
     void* result = NULL;
-    if(libGL == NULL) return NULL;
+    if(lib_%(api)s == NULL) return NULL;
 
 #ifndef __APPLE__
     if(gladGetProcAddressPtr != NULL) {
@@ -89,9 +94,9 @@ void* %(proc)s(const char *namez) {
 #endif
     if(result == NULL) {
 #ifdef _WIN32
-        result = (void*)GetProcAddress(libGL, namez);
+        result = (void*)GetProcAddress(lib_%(api)s, namez);
 #else
-        result = dlsym(libGL, namez);
+        result = dlsym(lib_%(api)s, namez);
 #endif
     }
 
